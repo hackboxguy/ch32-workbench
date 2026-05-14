@@ -1,0 +1,12 @@
+*.o
+*.elf
+*.bin
+*.hex
+*.lst
+*.map
+*.d
+*.s
+*.su
+build/
+compile_commands.json
+.cache/
