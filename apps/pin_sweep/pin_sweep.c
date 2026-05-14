@@ -3,57 +3,55 @@
 /*
  * Diagnostic: figure out which GPIO drives the user LED on an unknown board.
  *
- * Sweeps every usable CH32V003 GPIO. For each pin:
- *   - configures it as 10 MHz push-pull output
- *   - announces "PIN: <name>\r\n" on USART1 (PD5, 115200 8N1)
- *   - blinks the pin (250 ms on / 250 ms off) 4 times = 2 seconds total
- *   - returns the pin to floating input before moving on
- * Then 1 second of silence (all pins low), then the next pin.
+ * Uses ch32fun's funapi (funGpioInitAll, funPinMode, funDigitalWrite) -- the
+ * same code path that ch32fun's own examples/blink uses and that has been
+ * known to work on the F4P6 dev board. The earlier register-direct version
+ * of this file produced no visible blink on at least one V1772 board; the
+ * cause was never narrowed down. Switching to the helper API removes any
+ * chance of a subtle raw-register bug being the reason.
  *
- * To identify your LED pin:
- *   - open a serial terminal on the WCH-LinkE's USB-CDC at 115200, OR
- *   - count the bursts: PA1, PA2, PC0..PC7, PD0, PD2..PD7 (PD1=SWIO skipped)
+ * Per pin: announce "PIN: <name>\r\n" on USART1 (PD5, 115200 8N1), blink
+ * the pin 4 times at 250 ms cadence (2 s total), then 1 s of silence.
  *
- * The LED will blink during the burst matching its pin. Whatever board
- * polarity (active-high or active-low), you'll see ~4 transitions either
- * way -- the eye doesn't care which phase started high.
+ * Identifying your LED pin:
+ *   - watch the serial monitor (115200 8N1 on the WCH-LinkE's USB-CDC) and
+ *     wait for the LED to come alive during a "PIN: PXn" line, OR
+ *   - count visual bursts: PA1, PA2, PC0..PC7, PD0, PD2..PD7
+ *     (PD1=SWIO skipped to avoid fighting the programmer).
  *
- * Total sweep: 17 pins x 3 s = 51 s, then it loops.
+ * If neither the LED ever lights NOR the UART output ever appears, the
+ * chip isn't running -- check power, the programmer, the flash log.
  */
 
-typedef struct {
-    GPIO_TypeDef *port;
-    uint8_t pin;
-    uint32_t rcc_bit;
+static const struct {
+    uint32_t pin;
     const char *name;
-} pin_t;
-
-static const pin_t pins[] = {
-    {GPIOA, 1, RCC_APB2Periph_GPIOA, "PA1"},
-    {GPIOA, 2, RCC_APB2Periph_GPIOA, "PA2"},
-    {GPIOC, 0, RCC_APB2Periph_GPIOC, "PC0"},
-    {GPIOC, 1, RCC_APB2Periph_GPIOC, "PC1"},
-    {GPIOC, 2, RCC_APB2Periph_GPIOC, "PC2"},
-    {GPIOC, 3, RCC_APB2Periph_GPIOC, "PC3"},
-    {GPIOC, 4, RCC_APB2Periph_GPIOC, "PC4"},
-    {GPIOC, 5, RCC_APB2Periph_GPIOC, "PC5"},
-    {GPIOC, 6, RCC_APB2Periph_GPIOC, "PC6"},
-    {GPIOC, 7, RCC_APB2Periph_GPIOC, "PC7"},
-    {GPIOD, 0, RCC_APB2Periph_GPIOD, "PD0"},
-    /* PD1 is SWIO -- skipping so we don't fight the programmer. */
-    {GPIOD, 2, RCC_APB2Periph_GPIOD, "PD2"},
-    {GPIOD, 3, RCC_APB2Periph_GPIOD, "PD3"},
-    {GPIOD, 4, RCC_APB2Periph_GPIOD, "PD4"},
-    {GPIOD, 5, RCC_APB2Periph_GPIOD, "PD5"}, /* also USART1 TX */
-    {GPIOD, 6, RCC_APB2Periph_GPIOD, "PD6"},
-    {GPIOD, 7, RCC_APB2Periph_GPIOD, "PD7"},
+} pins[] = {
+    {PA1, "PA1"},
+    {PA2, "PA2"},
+    {PC0, "PC0"},
+    {PC1, "PC1"},
+    {PC2, "PC2"},
+    {PC3, "PC3"},
+    {PC4, "PC4"},
+    {PC5, "PC5"},
+    {PC6, "PC6"},
+    {PC7, "PC7"},
+    {PD0, "PD0"},
+    /* PD1 is SWIO -- skipping. */
+    {PD2, "PD2"},
+    {PD3, "PD3"},
+    {PD4, "PD4"},
+    {PD5, "PD5"}, /* shared with USART1 TX */
+    {PD6, "PD6"},
+    {PD7, "PD7"},
 };
 #define N_PINS (sizeof(pins) / sizeof(pins[0]))
 
 static void uart_init(void) {
     RCC->APB2PCENR |= RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOD;
-    /* PD5 alt-func push-pull, 10 MHz: CFG nibble = 0x9 = (10MHz | AF_PP). */
-    GPIOD->CFGLR = (GPIOD->CFGLR & ~(0xFu << (5 * 4))) | (0x9u << (5 * 4));
+    /* PD5 as alt-function push-pull (USART1 TX). */
+    funPinMode(PD5, GPIO_CFGLR_OUT_10Mhz_AF_PP);
     USART1->BRR = (FUNCONF_SYSTEM_CORE_CLOCK + 115200 / 2) / 115200;
     USART1->CTLR1 = USART_CTLR1_TE | USART_CTLR1_UE;
 }
@@ -66,55 +64,39 @@ static void uart_write(const char *s) {
     }
 }
 
-/* Configure pin as 10 MHz push-pull output, leaving other pins in the same
- * port untouched. */
-static void pin_output(GPIO_TypeDef *port, int pin) {
-    uint32_t shift = (uint32_t)pin * 4;
-    /* MODE=01 (10 MHz), CNF=00 (push-pull out) -> CFG nibble = 0x1 */
-    port->CFGLR = (port->CFGLR & ~(0xFu << shift)) | (0x1u << shift);
-}
-
-/* Return pin to floating input so a temporary drive doesn't fight whatever
- * the board has wired to that pin. */
-static void pin_floating_input(GPIO_TypeDef *port, int pin) {
-    uint32_t shift = (uint32_t)pin * 4;
-    /* MODE=00 (input), CNF=01 (floating input) -> CFG nibble = 0x4 */
-    port->CFGLR = (port->CFGLR & ~(0xFu << shift)) | (0x4u << shift);
-}
-
-static void pin_set(GPIO_TypeDef *port, int pin, int high) {
-    uint32_t bit = 1u << pin;
-    port->BSHR = high ? bit : (bit << 16);
-}
-
 int main(void) {
     SystemInit();
+
+    /* Enable every GPIO port clock at once -- matches last year's known-
+     * good blink.c that toggled PD0/PD4/PD6/PC0 on this board. */
+    funGpioInitAll();
+
     uart_init();
-    uart_write("\r\n=== pin_sweep starting ===\r\n");
+    uart_write("\r\n=== pin_sweep (funapi) starting ===\r\n");
+
+    /* Configure every sweep pin as a 10 MHz push-pull output upfront, so
+     * we don't pay the reconfigure cost inside the burst loop. */
+    for (unsigned i = 0; i < N_PINS; i++) {
+        funPinMode(pins[i].pin, GPIO_CFGLR_OUT_10Mhz_PP);
+        funDigitalWrite(pins[i].pin, FUN_LOW);
+    }
 
     for (;;) {
         for (unsigned i = 0; i < N_PINS; i++) {
-            const pin_t *p = &pins[i];
-
             uart_write("PIN: ");
-            uart_write(p->name);
+            uart_write(pins[i].name);
             uart_write("\r\n");
 
-            RCC->APB2PCENR |= p->rcc_bit;
-            pin_output(p->port, p->pin);
-
-            /* 4 toggles, 250 ms each = 2 seconds of clearly visible blinking */
+            /* 4 blinks at 250 ms cadence = 2 seconds clearly visible. */
             for (int j = 0; j < 4; j++) {
-                pin_set(p->port, p->pin, 1);
+                funDigitalWrite(pins[i].pin, FUN_HIGH);
                 Delay_Ms(250);
-                pin_set(p->port, p->pin, 0);
+                funDigitalWrite(pins[i].pin, FUN_LOW);
                 Delay_Ms(250);
             }
 
-            pin_floating_input(p->port, p->pin);
-
-            /* 1 second of silence between pins so the burst boundary is
-             * easy to see. */
+            /* 1 second of silence before the next pin so the burst
+             * boundary is obvious. */
             Delay_Ms(1000);
         }
         uart_write("=== sweep complete, restarting ===\r\n");
