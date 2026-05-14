@@ -18,27 +18,27 @@
  */
 
 /* Identification */
-#define BOARD_NAME                  "CH32V003F4P6 Dev Board"
-#define BOARD_MCU                   "CH32V003F4P6"
+#define BOARD_NAME "CH32V003F4P6 Dev Board"
+#define BOARD_MCU  "CH32V003F4P6"
 
 /* User LED */
-#define BOARD_HAS_LED               1
-#define BOARD_LED_PORT              GPIOD
-#define BOARD_LED_PIN               6
-#define BOARD_LED_RCC_BIT           RCC_APB2Periph_GPIOD
-#define BOARD_LED_ACTIVE_HIGH       1
+#define BOARD_HAS_LED         1
+#define BOARD_LED_PORT        GPIOD
+#define BOARD_LED_PIN         6
+#define BOARD_LED_RCC_BIT     RCC_APB2Periph_GPIOD
+#define BOARD_LED_ACTIVE_HIGH 1
 
 /* User button */
-#define BOARD_HAS_BUTTON            1
-#define BOARD_BUTTON_PORT           GPIOC
-#define BOARD_BUTTON_PIN            1
-#define BOARD_BUTTON_RCC_BIT        RCC_APB2Periph_GPIOC
-#define BOARD_BUTTON_ACTIVE_LOW     1
+#define BOARD_HAS_BUTTON        1
+#define BOARD_BUTTON_PORT       GPIOC
+#define BOARD_BUTTON_PIN        1
+#define BOARD_BUTTON_RCC_BIT    RCC_APB2Periph_GPIOC
+#define BOARD_BUTTON_ACTIVE_LOW 1
 
 /* Default UART (USART1 TX = PD5 on CH32V003) */
-#define BOARD_UART_TX_PORT          GPIOD
-#define BOARD_UART_TX_PIN           5
-#define BOARD_UART_TX_RCC_BIT       RCC_APB2Periph_GPIOD
-#define BOARD_UART_BAUD             115200
+#define BOARD_UART_TX_PORT    GPIOD
+#define BOARD_UART_TX_PIN     5
+#define BOARD_UART_TX_RCC_BIT RCC_APB2Periph_GPIOD
+#define BOARD_UART_BAUD       115200
 
 #endif /* BOARD_CH32V003F4P6_DEVBOARD_H */

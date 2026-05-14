@@ -21,14 +21,14 @@
  * selects the matching board header.
  */
 
-#if   defined(BOARD_CH32V003F4P6_DEVBOARD)
-  #include "ch32v003f4p6_devboard.h"
+#if defined(BOARD_CH32V003F4P6_DEVBOARD)
+#include "ch32v003f4p6_devboard.h"
 #elif defined(BOARD_CH32V003J4M6_MINIMAL)
-  #include "ch32v003j4m6_minimal.h"
+#include "ch32v003j4m6_minimal.h"
 #elif defined(BOARD_CH32V003A4M6_QFN20)
-  #include "ch32v003a4m6_qfn20.h"
+#include "ch32v003a4m6_qfn20.h"
 #else
-  #error "No BOARD_* defined. Pass BOARD=<name> to make."
+#error "No BOARD_* defined. Pass BOARD=<name> to make."
 #endif
 
 #endif /* BOARD_H */

@@ -11,12 +11,11 @@
  * an extra BOARD_UART_REMAP macro -- deferred.
  */
 
-#define UART_PIN_CFG_AF_PP  ((uint32_t)(GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF))
-#define UART_PIN_SHIFT      (BOARD_UART_TX_PIN * 4)
-#define UART_PIN_MASK       ((uint32_t)0xFu << UART_PIN_SHIFT)
+#define UART_PIN_CFG_AF_PP ((uint32_t)(GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF))
+#define UART_PIN_SHIFT     (BOARD_UART_TX_PIN * 4)
+#define UART_PIN_MASK      ((uint32_t)0xFu << UART_PIN_SHIFT)
 
-static void uart_init(uint32_t baud)
-{
+static void uart_init(uint32_t baud) {
     /* Enable clocks: USART1 (always on APB2 on CH32V003), and the GPIO
      * port that hosts the TX pin. The two RCC bits may or may not refer
      * to the same port -- ORing both is safe either way. */
@@ -24,8 +23,7 @@ static void uart_init(uint32_t baud)
 
     /* Configure TX pin as 10 MHz alt-function push-pull. */
     BOARD_UART_TX_PORT->CFGLR =
-        (BOARD_UART_TX_PORT->CFGLR & ~UART_PIN_MASK) |
-        (UART_PIN_CFG_AF_PP << UART_PIN_SHIFT);
+        (BOARD_UART_TX_PORT->CFGLR & ~UART_PIN_MASK) | (UART_PIN_CFG_AF_PP << UART_PIN_SHIFT);
 
     /* Baud rate divisor: APB clock / baud, rounded. */
     USART1->BRR = (FUNCONF_SYSTEM_CORE_CLOCK + (baud / 2)) / baud;
@@ -34,23 +32,21 @@ static void uart_init(uint32_t baud)
     USART1->CTLR1 = USART_CTLR1_TE | USART_CTLR1_UE;
 }
 
-static void uart_write(const char *s)
-{
+static void uart_write(const char *s) {
     while (*s) {
-        while (!(USART1->STATR & USART_FLAG_TXE)) { /* spin */ }
+        while (!(USART1->STATR & USART_FLAG_TXE)) { /* spin */
+        }
         USART1->DATAR = (uint16_t)(*s++);
     }
 }
 
-int main(void)
-{
+int main(void) {
     SystemInit();
     uart_init(BOARD_UART_BAUD);
 
     /* String literal concatenation builds the greeting at compile time --
      * no snprintf, no .rodata copy beyond the literal itself. */
-    static const char greeting[] =
-        "Hello from " BOARD_NAME " on " BOARD_MCU "\r\n";
+    static const char greeting[] = "Hello from " BOARD_NAME " on " BOARD_MCU "\r\n";
 
     while (1) {
         uart_write(greeting);

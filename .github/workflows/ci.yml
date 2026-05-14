@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            gcc-riscv64-unknown-elf \
+            build-essential \
+            libusb-1.0-0-dev \
+            libudev-dev \
+            pkg-config
+
+      - name: Build all (app × board) and emit size report
+        run: ./ci/size-report.sh
+
+      - name: Upload built ELFs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: elfs-${{ matrix.os }}
+          path: |
+            apps/*/*.elf
+          if-no-files-found: ignore
+
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: shellcheck scripts/setup.sh ci/*.sh
+
+      - name: clang-format dry-run
+        run: |
+          files=$(find apps boards common -type f \( -name '*.c' -o -name '*.h' \))
+          if [ -n "$files" ]; then
+            # shellcheck disable=SC2086
+            clang-format --dry-run --Werror $files
+          fi

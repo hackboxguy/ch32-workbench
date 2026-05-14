@@ -22,24 +22,24 @@
  * pick a free pin from the map above and edit BOARD_LED_PORT/PIN.
  */
 
-#define BOARD_NAME                  "CH32V003J4M6 minimal (perfboard)"
-#define BOARD_MCU                   "CH32V003J4M6"
+#define BOARD_NAME              "CH32V003J4M6 minimal (perfboard)"
+#define BOARD_MCU               "CH32V003J4M6"
 
-#define BOARD_HAS_LED               1
-#define BOARD_LED_PORT              GPIOC
-#define BOARD_LED_PIN               1
-#define BOARD_LED_RCC_BIT           RCC_APB2Periph_GPIOC
-#define BOARD_LED_ACTIVE_HIGH       1
+#define BOARD_HAS_LED           1
+#define BOARD_LED_PORT          GPIOC
+#define BOARD_LED_PIN           1
+#define BOARD_LED_RCC_BIT       RCC_APB2Periph_GPIOC
+#define BOARD_LED_ACTIVE_HIGH   1
 
-#define BOARD_HAS_BUTTON            1
-#define BOARD_BUTTON_PORT           GPIOD
-#define BOARD_BUTTON_PIN            4
-#define BOARD_BUTTON_RCC_BIT        RCC_APB2Periph_GPIOD
-#define BOARD_BUTTON_ACTIVE_LOW     1
+#define BOARD_HAS_BUTTON        1
+#define BOARD_BUTTON_PORT       GPIOD
+#define BOARD_BUTTON_PIN        4
+#define BOARD_BUTTON_RCC_BIT    RCC_APB2Periph_GPIOD
+#define BOARD_BUTTON_ACTIVE_LOW 1
 
-#define BOARD_UART_TX_PORT          GPIOD
-#define BOARD_UART_TX_PIN           5
-#define BOARD_UART_TX_RCC_BIT       RCC_APB2Periph_GPIOD
-#define BOARD_UART_BAUD             115200
+#define BOARD_UART_TX_PORT      GPIOD
+#define BOARD_UART_TX_PIN       5
+#define BOARD_UART_TX_RCC_BIT   RCC_APB2Periph_GPIOD
+#define BOARD_UART_BAUD         115200
 
 #endif /* BOARD_CH32V003J4M6_MINIMAL_H */
