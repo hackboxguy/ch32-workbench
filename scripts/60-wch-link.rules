@@ -1,0 +1,18 @@
+# udev rules for ch32-workbench / cnlohr/ch32fun
+#
+# Grants non-root access to:
+#   - WCH-LinkE programmer (USB VID 1a86, PIDs 8010 / 8012)
+#   - CH32V003 in factory ISP / BOOT0 mode (USB VID 4348, PID 55e0)
+#
+# Style: MODE 0660 + TAG+="uaccess" gives the currently logged-in seat
+# user access without making the device world-readable.
+
+# WCH-LinkE programmer (HID and raw-USB endpoints)
+SUBSYSTEM=="usb",    ATTR{idVendor}=="1a86",  ATTR{idProduct}=="8010",  MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb",    ATTR{idVendor}=="1a86",  ATTR{idProduct}=="8012",  MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="8010", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="8012", MODE="0660", TAG+="uaccess"
+
+# CH32V003 in factory ISP (BOOT0) mode -- use this instead of WCH-LinkE
+# when flashing via the built-in USB DFU bootloader
+SUBSYSTEM=="usb",    ATTR{idVendor}=="4348",  ATTR{idProduct}=="55e0",  MODE="0660", TAG+="uaccess"
