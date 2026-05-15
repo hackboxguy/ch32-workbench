@@ -85,11 +85,23 @@
 
 /* --- Tachometer ------------------------------------------------------- */
 /*
- * Falling edges on PIN_FAN_TACH increment tach_count. A 1 ms inter-edge
- * filter rejects contact-bounce / ground-noise: the NF-A8's real maximum
- * edge rate is ~73 Hz (2200 RPM, 2 pulses/rev), so 1 ms leaves >13x
- * margin against legitimate edges.
+ * Falling edges on PIN_FAN_TACH increment tach_count, gated by an
+ * inter-edge filter: once an edge is counted, further edges are ignored
+ * for TACH_MIN_EDGE_MS. Each real tach pulse tends to arrive with a short
+ * burst of ringing / motor-commutation-noise edges riding on it; the
+ * filter collapses that whole burst into a single count.
+ *
+ * The NF-A8's real maximum edge rate is ~80 Hz (2200 RPM plus tolerance,
+ * 2 pulses/rev -> ~12.5 ms minimum period), so an 8 ms window stays well
+ * clear of legitimate edges while swallowing sub-8-ms noise bursts.
+ *
+ * Do NOT raise TACH_MIN_EDGE_MS much past 10 ms -- real edges at top RPM
+ * would start getting rejected. If a clean common ground and a stiff
+ * tach pull-up still leave the reading inflated, the noise burst is wider
+ * than this window and only the wiring can fix it.
  */
+#define TACH_MIN_EDGE_MS 8
+
 static volatile uint32_t tach_count = 0;
 
 void EXTI7_0_IRQHandler(void) __attribute__((interrupt));
@@ -98,7 +110,7 @@ void EXTI7_0_IRQHandler(void) {
     if (EXTI->INTFR & EXTI_Line0) {
         EXTI->INTFR = EXTI_Line0; /* acknowledge */
         uint32_t now = SysTick->CNT;
-        if ((uint32_t)(now - last_tick) >= Ticks_from_Ms(1)) {
+        if ((uint32_t)(now - last_tick) >= Ticks_from_Ms(TACH_MIN_EDGE_MS)) {
             last_tick = now;
             tach_count++;
         }
