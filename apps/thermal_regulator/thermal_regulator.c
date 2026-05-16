@@ -17,18 +17,29 @@
  * --- Pinout (CH32V003F4P6) ---------------------------------------------
  *   PC1   I2C1 SDA   -> OLED SDA
  *   PC2   I2C1 SCL   -> OLED SCL
- *   PD4   TIM2_CH1   -> fan pin 4 (PWM, blue),  25 kHz, 3.3 V
- *   PD0   EXTI0 in   -> fan pin 3 (tach, green), 10 k pull-up to 3V3
- *   PD3   1-Wire     -> DS18B20 DQ,              4.7 k pull-up to 3V3
+ *   PD4   TIM2_CH1   -> fan pin 4 (PWM, blue), 25 kHz
+ *   PD0   EXTI0 in   -> fan pin 3 (tach, green); 10 k pull-up to VDD
+ *                      PLUS a ~10 nF cap from PD0 to GND (required --
+ *                      see hardware notes)
+ *   PD3   1-Wire     -> DS18B20 DQ; 4.7 k pull-up to VDD
  *   PD1   SWIO       -> WCH-LinkE (programming/debug)
  *
  * --- Critical hardware notes -------------------------------------------
  *   - Common ground is non-negotiable: tie the 12 V PSU negative, the
- *     fan GND, and the board GND together at one point with short wire.
- *     Ground bounce on the tach line otherwise inflates the count wildly.
- *   - The tach pull-up MUST go to 3.3 V (open-collector output) -- 5 V or
- *     12 V will damage the input pin.
- *   - 3.3 V PWM drives Noctua fans directly (no level shifter needed).
+ *     fan GND, and the board GND together at one point with short, thick
+ *     wire. Ground bounce on the tach line otherwise swamps the count.
+ *   - The ~10 nF tach cap (PD0 to GND) is REQUIRED, not optional. With
+ *     the 10 k pull-up it forms a ~1.6 kHz low-pass: it passes the real
+ *     tach signal (<=75 Hz for an NF-A8) untouched while killing the
+ *     fan's motor-commutation EMI. Without it the tach reads pinned near
+ *     maximum regardless of actual RPM. 10-22 nF works; stay under
+ *     ~100 nF or the real signal starts getting rounded off.
+ *   - Pull-ups (tach, 1-Wire) go to the MCU's VDD rail -- 3.3 V or 5 V,
+ *     whichever the board runs the CH32V003 at. Some boards (e.g. the
+ *     "V1772") have no regulator and run the MCU at 5 V; pull up to 5 V
+ *     there. Never pull a pin above VDD.
+ *   - 3.3 V or 5 V PWM both drive Noctua fans directly (min input-high
+ *     ~2.5 V) -- no level shifter needed.
  *   - Fan +12 V (pin 2, yellow) comes from a separate 12 V supply.
  */
 
