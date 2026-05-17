@@ -4,7 +4,8 @@
  * A DS18B20 temperature sensor drives the duty cycle of a Noctua NF-A8
  * 12 V 4-pin PWM fan; the fan's tachometer is read back; temperature,
  * applied duty, and fan speed are shown on an SSD1306 I2C OLED and also
- * logged once per second over the SWIO debug channel.
+ * emitted once per second as a text line on TWO channels: the SWIO debug
+ * channel (printf) and a 115200 8N1 UART (USART1 TX on PC0) for a host PC.
  *
  * Ported from an ESP32-C3 reference. Differences forced by the CH32V003:
  *   - bare-metal superloop instead of a FreeRTOS task
@@ -23,6 +24,8 @@
  *                      see hardware notes)
  *   PD3   1-Wire     -> DS18B20 DQ; 4.7 k pull-up to VDD
  *   PD1   SWIO       -> WCH-LinkE (programming/debug)
+ *   PC0   USART1 TX  -> host serial log, 115200 8N1 (USART1 remapped to
+ *                      PC0 -- the default TX pin PD5 is unavailable here)
  *
  * --- Critical hardware notes -------------------------------------------
  *   - Common ground is non-negotiable: tie the 12 V PSU negative, the
@@ -259,16 +262,60 @@ static void oled_show(int temp_cc, int duty_pct, unsigned tps, unsigned rpm) {
     ssd1306_refresh();
 }
 
-static void debug_log(int temp_cc, int duty_pct, unsigned tps, unsigned rpm) {
+/* --- Host serial output (USART1 TX on PC0) ---------------------------- */
+/*
+ * A second, independent copy of each report line goes out USART1 TX so a
+ * host PC can log it. printf() still targets the SWIO debug channel (see
+ * funconfig.h) -- this hand-rolled polled UART is separate and does not
+ * touch printf's backend.
+ *
+ * USART1 TX is remapped to PC0: the default TX pin (PD5) is not broken
+ * out on this board, and the other remap option (PD0) is taken by the
+ * tach. Remap value 0b11 (both AFIO USART1 remap bits) selects
+ * TX=PC0 / RX=PC1; RX is left disabled, so PC1 stays free for the I2C
+ * OLED. If PC0 is unavailable on your board, USART1 TX can instead
+ * remap to PD5 / PD0 / PD6 -- adjust the remap bits and funPinMode pin.
+ */
+#define HOST_UART_BAUD 115200
+
+static void host_uart_init(void) {
+    RCC->APB2PCENR |= RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOC | RCC_APB2Periph_AFIO;
+    /* remap USART1 so TX lands on PC0 (both remap bits set) */
+    AFIO->PCFR1 |= AFIO_PCFR1_USART1_REMAP_1 | AFIO_PCFR1_USART1_REMAP;
+    /* PC0 = USART1 TX, 10 MHz alt-function push-pull */
+    funPinMode(PC0, GPIO_CFGLR_OUT_10Mhz_AF_PP);
+    USART1->BRR = (FUNCONF_SYSTEM_CORE_CLOCK + HOST_UART_BAUD / 2) / HOST_UART_BAUD;
+    USART1->CTLR1 = USART_CTLR1_TE | USART_CTLR1_UE; /* TX only */
+}
+
+static void host_uart_write(const char *s) {
+    while (*s) {
+        while (!(USART1->STATR & USART_FLAG_TXE)) {
+        }
+        USART1->DATAR = (uint16_t)(*s++);
+    }
+}
+
+/* --- Report ----------------------------------------------------------- */
+/*
+ * Build one human-readable status line and emit it to BOTH sinks: the
+ * SWIO debug channel (printf) and the host UART. One format string, so
+ * the two channels can never drift apart.
+ */
+static void emit_report(int temp_cc, int duty_pct, unsigned tps, unsigned rpm) {
+    char line[64];
     if (temp_cc <= TEMP_BAD_CC) {
-        printf("T=ERR       duty=%3d%%  tach=%4u t/s  rpm=%5u\n", duty_pct, tps, rpm);
+        snprintf(line, sizeof(line), "T=ERR       duty=%3d%%  tach=%4u t/s  rpm=%5u\r\n", duty_pct,
+                 tps, rpm);
     } else {
         const char *sign;
         int whole, frac;
         temp_parts(temp_cc, &sign, &whole, &frac);
-        printf("T=%s%d.%02d C  duty=%3d%%  tach=%4u t/s  rpm=%5u\n", sign, whole, frac, duty_pct,
-               tps, rpm);
+        snprintf(line, sizeof(line), "T=%s%d.%02d C  duty=%3d%%  tach=%4u t/s  rpm=%5u\r\n", sign,
+                 whole, frac, duty_pct, tps, rpm);
     }
+    printf("%s", line);    /* SWIO debug channel (minichlink -T) */
+    host_uart_write(line); /* USART1 TX on PC0, 115200 8N1, to a host PC */
 }
 
 /* --- Main ------------------------------------------------------------- */
@@ -287,12 +334,14 @@ int main(void) {
 
     pwm_init();
     tach_init();
+    host_uart_init();
     ONE_INPUT; /* park the 1-Wire pin idle-high */
 
     pwm_set_pct(DUTY_IDLE_PCT);
     int duty_applied = DUTY_IDLE_PCT;
 
     printf("thermal_regulator: starting (OLED %s)\n", oled_ok ? "ok" : "absent");
+    host_uart_write("thermal_regulator: host serial up, 115200 8N1\r\n");
 
     /* The control window is delimited by SysTick so the tach rate is
      * normalised to a true per-second figure regardless of how long the
@@ -327,10 +376,10 @@ int main(void) {
         unsigned tps = elapsed_ms ? (unsigned)((ticks * 1000u) / elapsed_ms) : 0;
         unsigned rpm = tps * 30u; /* NF-A8: 2 tach pulses per revolution */
 
-        /* 5. report */
+        /* 5. report -- OLED, SWIO debug, and host UART */
         if (oled_ok)
             oled_show(temp_cc, duty_applied, tps, rpm);
-        debug_log(temp_cc, duty_applied, tps, rpm);
+        emit_report(temp_cc, duty_applied, tps, rpm);
 
         /* next window starts exactly where this one closed -- no gap, no
          * double-counted edges */

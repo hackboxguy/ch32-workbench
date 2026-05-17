@@ -60,7 +60,7 @@ cd apps/blink && make flash
 | [`uart_hello`](apps/uart_hello) | Polled USART1 transmit. Sends `"Hello from <BOARD_NAME> on <BOARD_MCU>\r\n"` once per second. | A serial monitor on the board's USART1 TX (PD5 on CH32V003). |
 | [`gpio_button`](apps/gpio_button) | Mirror a user button onto the user LED with software debounce. | LED + button. Compile-errors on boards without a button. |
 | [`i2c_ssd1306_oled_test`](apps/i2c_ssd1306_oled_test) | 9-mode graphics demo intro, then a running `HH:MM:SS` clock at 1 Hz. | SSD1306 128×64 I2C OLED on PC1/PC2. |
-| [`thermal_regulator`](apps/thermal_regulator) | Closed-loop PWM fan controller — a DS18B20 sets a Noctua NF-A8's duty cycle; temperature, duty, and tach speed show on the OLED. | DS18B20, 4-pin PWM fan, 12 V supply, SSD1306 OLED. See "Hardware setup" below. |
+| [`thermal_regulator`](apps/thermal_regulator) | Closed-loop PWM fan controller — a DS18B20 sets a Noctua NF-A8's duty cycle; temperature, duty, and tach speed show on the OLED and stream once/sec on a 115200 serial line. | DS18B20, 4-pin PWM fan, 12 V supply, SSD1306 OLED. See "Hardware setup" below. |
 | [`pin_sweep`](apps/pin_sweep) | **Diagnostic.** Drives every CH32V003 GPIO in sequence, ~2 s per pin, with UART announcements. | Used to find which pin actually drives the LED on an unknown board. |
 | [`blink_legacy`](apps/blink_legacy) | **Diagnostic.** Drives PD0+PD4+PD6+PC0 simultaneously at 2 Hz. | A sanity check: if even this doesn't visibly blink anything, your board likely has no GPIO-controlled user LED. |
 
@@ -84,10 +84,13 @@ Wiring:
 | PD4 | fan PWM input (pin 4, blue) |
 | PD0 | fan tach (pin 3, green) |
 | PD3 | DS18B20 DQ |
+| PC0 | host serial out — USART1 TX, 115200 8N1 |
 | VDD | OLED VCC, DS18B20 VDD, all three pull-ups |
 | GND | OLED GND, DS18B20 GND, fan GND (pin 1), tach cap, **12 V PSU negative** |
 
 Fan +12 V (pin 2, yellow) → the 12 V supply's positive terminal. The 1-Wire pull-up is 4.7 kΩ from PD3 to VDD; the tach pull-up is 10 kΩ from PD0 to VDD; the tach cap is ~10 nF from PD0 to GND.
+
+**Host serial:** PC0 streams a once-per-second status line (`T=… duty=… tach=… rpm=…`) at 115200 8N1. Wire PC0 to a USB-serial adapter's RX (common ground), or to the WCH-LinkE's RX header pin to read it on the WCH-LinkE's USB-CDC port (`/dev/ttyACM0`). The same line also goes to the SWIO debug channel — view that with `minichlink -T`. USART1's default TX is PD5; it's remapped to PC0 here because PD5 isn't broken out on the V1772 board and PD0 is taken by the tach.
 
 Pull-ups go to **VDD** — 3.3 V or 5 V depending on your board. (The V1772 board has no regulator and runs the CH32V003 at 5 V, so pull up to 5 V there.) Never pull a pin above VDD.
 
